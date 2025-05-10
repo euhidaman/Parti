@@ -1,47 +1,84 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
-import FileUploader from './components/FileUploader';
-import QuizDisplay from './components/QuizDisplay';
-import YouTubeInput from './components/YouTubeInput';
 
-function App() {
-  const [quizData, setQuizData] = useState(null);
-  const [activeTab, setActiveTab] = useState('file'); // 'file' or 'youtube'
+import { useAuth, AuthProvider } from './contexts/AuthContext';
+import Login from './components/auth/Login';
+import ProfessorDashboard from './components/auth/ProfessorDashboard';
+import StudentDashboard from './components/auth/StudentDashboard';
 
-  const handleQuizData = (data) => {
-    setQuizData(data);
-  };
+// Protected route component that redirects to login if not authenticated
+const ProtectedRoute = ({ children, requiredRole }) => {
+  const { isAuthenticated, hasRole } = useAuth();
+
+  if (!isAuthenticated()) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (requiredRole && !hasRole(requiredRole)) {
+    // If a specific role is required but user doesn't have it
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
+// Component to route users based on their role
+const RoleRouter = () => {
+  const { hasRole } = useAuth();
+
+  if (hasRole('professor')) {
+    return <Navigate to="/professor" replace />;
+  }
+
+  if (hasRole('student')) {
+    return <Navigate to="/student" replace />;
+  }
+
+  return <Navigate to="/login" replace />;
+};
+
+function AppContent() {
+  const { isAuthenticated } = useAuth();
 
   return (
     <div className="App">
-      <header className="App-header">
-        <h1>Quiz Generator</h1>
-      </header>
-      <main>
-        <div className="input-tabs">
-          <button
-            className={`tab-button ${activeTab === 'file' ? 'active' : ''}`}
-            onClick={() => setActiveTab('file')}
-          >
-            Upload File
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'youtube' ? 'active' : ''}`}
-            onClick={() => setActiveTab('youtube')}
-          >
-            YouTube Video
-          </button>
-        </div>
-        <div className="input-container">
-          {activeTab === 'file' ? (
-            <FileUploader onQuizGenerated={handleQuizData} />
-          ) : (
-            <YouTubeInput onUrlSubmit={handleQuizData} />
-          )}
-        </div>
-        {quizData && <QuizDisplay quizData={quizData} />}
-      </main>
+      <BrowserRouter>
+        <Routes>
+          {/* Public route for login */}
+          <Route path="/login" element={
+            isAuthenticated() ? <Navigate to="/" replace /> : <Login />
+          } />
+
+          {/* Protected routes based on role */}
+          <Route path="/professor" element={
+            <ProtectedRoute requiredRole="professor">
+              <ProfessorDashboard />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/student" element={
+            <ProtectedRoute requiredRole="student">
+              <StudentDashboard />
+            </ProtectedRoute>
+          } />
+
+          {/* Root route redirects based on auth status and role */}
+          <Route path="/" element={<RoleRouter />} />
+
+          {/* Fallback route */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
